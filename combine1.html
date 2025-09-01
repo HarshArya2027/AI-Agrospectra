@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Agro-Spectra — Dashboard (Dark/Light + Mobile-ready)</title>
+
+  <!-- Prevent flash: set theme based on saved preference or system BEFORE CSS loads -->
+  <script>
+    (function(){
+      try {
+        const saved = localStorage.getItem('theme'); // 'dark' | 'light' or null
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (!saved && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch(e){}
+    })();
+  </script>
+
+  <!-- Fonts / Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans&family=Lato&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Tailwind CDN (using class-based dark mode) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {} }
+    };
+  </script>
+
+  <!-- AOS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css" rel="stylesheet" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    /* Minimal custom CSS (no @apply) */
+    :root { --primary: #611bf8; }
+    body { font-family: "Open Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    .card { border-radius: 12px; box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
+    .mini-icon { width:40px; height:40px; display:flex;align-items:center;justify-content:center;border-radius:8px; }
+    #map { height: 420px; min-height: 260px; border-radius: 12px; }
+    .table-scroll { max-height: 320px; overflow:auto; }
+    /* small fix for apex container */
+    #apex-trend { height: 300px; }
+  </style>
+</head>
+<body <body class="bg-gradient-to-br from-green-50 via-white to-emerald-100 
+             dark:from-gray-900 dark:via-gray-800 dark:to-teal-900 
+             text-gray-900 dark:text-gray-100 antialiased transition-colors min-h-screen">
+
+
+  <!-- Header -->
+  <header class="bg-white dark:bg-gray-800 shadow-sm">
+    <div class="container mx-auto px-5 py-4 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <span class="material-symbols-outlined text-3xl text-purple-600 dark:text-purple-400">landscape</span>
+        <h1 class="text-xl font-semibold">AI Agro-Spectra</h1>
+      </div>
+
+      <!-- Desktop Nav -->
+      <nav class="hidden md:flex items-center space-x-6 text-sm text-gray-700 dark:text-gray-300">
+        <a href="#dashboard" class="hover:text-purple-600 dark:hover:text-purple-400">Dashboard</a>
+        <a href="#map-section" class="hover:text-purple-600 dark:hover:text-purple-400">Map</a>
+        <a href="#charts" class="hover:text-purple-600 dark:hover:text-purple-400">Charts</a>
+        <a href="#alerts" class="hover:text-purple-600 dark:hover:text-purple-400">Alerts</a>
+        <a href="#sensors" class="hover:text-purple-600 dark:hover:text-purple-400">Sensors</a>
+      </nav>
+
+      <!-- Actions -->
+      <div class="flex items-center space-x-3">
+        <!-- Theme Toggle -->
+        <button id="theme-toggle" class="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Toggle theme">
+          <i id="theme-icon" class="fas"></i>
+        </button>
+
+        <!-- Mobile Menu Button -->
+        <button id="menu-toggle" class="md:hidden p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Open menu">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Nav (collapsed by default) -->
+    <nav id="mobile-menu" class="hidden md:hidden bg-gray-100 dark:bg-gray-800 px-5 py-3 space-y-2">
+      <a href="#dashboard" class="block">Dashboard</a>
+      <a href="#map-section" class="block">Map</a>
+      <a href="#charts" class="block">Charts</a>
+      <a href="#alerts" class="block">Alerts</a>
+      <a href="#sensors" class="block">Sensors</a>
+    </nav>
+  </header>
+
+  <main class="container mx-auto px-5 py-8 space-y-8">
+
+    <!-- Dashboard -->
+    <section id="dashboard" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2">
+        <div class="card bg-white dark:bg-gray-800 p-6" data-aos="fade-up">
+          <div class="flex items-start justify-between">
+            <div>
+              <h2 class="text-2xl font-semibold">Farm Health Dashboard</h2>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Overview of field health, sensors & recent alerts</p>
+            </div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">
+              Last updated: <span id="last-updated-top">--</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            <div class="card p-4 bg-white dark:bg-gray-700">
+              <div class="flex items-center space-x-4">
+                <div class="mini-icon bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400"><i class="fas fa-leaf"></i></div>
+                <div>
+                  <p class="text-sm text-gray-500 dark:text-gray-300">Overall Crop Health</p>
+                  <p class="text-xl font-bold">92% <span class="text-sm text-green-500 dark:text-green-300">+3% w/w</span></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card p-4 bg-white dark:bg-gray-700">
+              <div class="flex items-center space-x-4">
+                <div class="mini-icon bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400"><i class="fas fa-tint"></i></div>
+                <div>
+                  <p class="text-sm text-gray-500 dark:text-gray-300">Soil Moisture</p>
+                  <p class="text-xl font-bold">76% <span class="text-sm text-blue-500 dark:text-blue-300">Optimal</span></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card p-4 bg-white dark:bg-gray-700">
+              <div class="flex items-center space-x-4">
+                <div class="mini-icon bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-400"><i class="fas fa-bug"></i></div>
+                <div>
+                  <p class="text-sm text-gray-500 dark:text-gray-300">Pest Risk</p>
+                  <p class="text-xl font-bold">Low <span class="text-sm text-amber-500 dark:text-amber-300">2 zones</span></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card p-4 bg-white dark:bg-gray-700">
+              <div class="flex items-center space-x-4">
+                <div class="mini-icon bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-400"><i class="fas fa-flask"></i></div>
+                <div>
+                  <p class="text-sm text-gray-500 dark:text-gray-300">Nutrient Levels</p>
+                  <p class="text-xl font-bold">85% <span class="text-sm text-purple-500 dark:text-purple-300">Nitrogen: Adequate</span></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mt-6 bg-white dark:bg-gray-800 p-4">
+            <h3 class="text-lg font-medium mb-3">NDVI & Soil Moisture Trend</h3>
+            <div id="apex-trend"></div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="card bg-white dark:bg-gray-800 p-6" data-aos="zoom-in">
+        <h3 class="text-lg font-semibold mb-3">Recent Alerts</h3>
+        <div class="space-y-3">
+          <div class="p-3 rounded-md bg-red-50 dark:bg-red-900 border-l-4 border-red-500">
+            <div class="flex justify-between">
+              <div>
+                <p class="font-medium text-red-800 dark:text-red-300">Potential Pest Detection</p>
+                <p class="text-sm text-red-600 dark:text-red-200">Southwest — Aphid signs</p>
+              </div>
+              <span class="text-xs text-red-500 dark:text-red-200">2h ago</span>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-md bg-yellow-50 dark:bg-yellow-900 border-l-4 border-amber-400">
+            <div class="flex justify-between">
+              <div>
+                <p class="font-medium text-amber-800 dark:text-amber-200">Irrigation Advisory</p>
+                <p class="text-sm text-amber-600 dark:text-amber-200">Reduce in Field C - East</p>
+              </div>
+              <span class="text-xs text-amber-500 dark:text-amber-200">Yesterday</span>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-md bg-green-50 dark:bg-green-900 border-l-4 border-green-400">
+            <div class="flex justify-between">
+              <div>
+                <p class="font-medium text-green-800 dark:text-green-200">Positive Growth</p>
+                <p class="text-sm text-green-600 dark:text-green-200">Field A responded well</p>
+              </div>
+              <span class="text-xs text-green-500 dark:text-green-200">Jul 12</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="mt-4 w-full py-2 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600">View All Alerts</button>
+      </aside>
+    </section>
+
+    <!-- Map -->
+    <section id="map-section" class="card bg-white dark:bg-gray-800 p-6" data-aos="zoom-in">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-semibold">Field Health Map</h2>
+        <div class="flex gap-2">
+          <button class="map-layer-btn px-3 py-1 rounded bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 text-sm" data-layer="health">Health</button>
+          <button class="map-layer-btn px-3 py-1 rounded bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 text-sm" data-layer="moisture">Moisture</button>
+          <button class="map-layer-btn px-3 py-1 rounded bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-300 text-sm" data-layer="pest">Pest Risk</button>
+        </div>
+      </div>
+
+      <div id="map" class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"></div>
+      <div class="mt-3 flex gap-6 text-sm text-gray-600 dark:text-gray-300">
+        <div class="flex items-center"><div class="w-3 h-3 bg-green-500 rounded mr-2"></div>Healthy</div>
+        <div class="flex items-center"><div class="w-3 h-3 bg-yellow-500 rounded mr-2"></div>Moderate</div>
+        <div class="flex items-center"><div class="w-3 h-3 bg-red-500 rounded mr-2"></div>High Stress</div>
+        <div class="flex items-center"><div class="w-3 h-3 bg-blue-500 rounded mr-2"></div>Water Excess</div>
+      </div>
+    </section>
+
+    <!-- Charts -->
+    <section id="charts" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="card bg-white dark:bg-gray-800 p-4" data-aos="fade-right">
+        <h3 class="mb-2 font-medium">Vegetation Health (NDVI)</h3>
+        <div style="height:220px;"><canvas id="ndviChart"></canvas></div>
+      </div>
+
+      <div class="card bg-white dark:bg-gray-800 p-4" data-aos="fade-left">
+        <h3 class="mb-2 font-medium">Soil Moisture Levels</h3>
+        <div style="height:220px;"><canvas id="moistureChart"></canvas></div>
+      </div>
+
+      <div class="card bg-white dark:bg-gray-800 p-4" data-aos="fade-right">
+        <h3 class="mb-2 font-medium">Pest Risk Probability</h3>
+        <div style="height:220px;"><canvas id="pestChart"></canvas></div>
+      </div>
+
+      <div class="card bg-white dark:bg-gray-800 p-4" data-aos="fade-left">
+        <h3 class="mb-2 font-medium">Nutrient Levels</h3>
+        <div style="height:220px;"><canvas id="nutrientChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- Sensors -->
+    <section id="sensors" class="card bg-white dark:bg-gray-800 p-6" data-aos="fade-up">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold">Sensor Network Status</h3>
+        <button id="add-sensor" class="px-3 py-1 rounded bg-purple-50 dark:bg-purple-900 text-purple-700 dark:text-purple-300">Add Sensor</button>
+      </div>
+
+      <div class="mt-4 table-scroll">
+        <table class="min-w-full text-sm">
+          <thead class="text-left text-gray-600 dark:text-gray-400">
+            <tr>
+              <th class="px-4 py-2">Sensor ID</th>
+              <th class="px-4 py-2">Type</th>
+              <th class="px-4 py-2">Location</th>
+              <th class="px-4 py-2">Battery</th>
+              <th class="px-4 py-2">Status</th>
+            </tr>
+          </thead>
+          <tbody class="text-gray-800 dark:text-gray-200">
+            <tr class="border-t border-gray-100 dark:border-gray-700">
+              <td class="px-4 py-3 font-medium">SNS-001</td>
+              <td class="px-4 py-3">Soil Moisture</td>
+              <td class="px-4 py-3">Field B - North</td>
+              <td class="px-4 py-3">85%</td>
+              <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200">Active</span></td>
+            </tr>
+            <tr class="border-t border-gray-100 dark:border-gray-700">
+              <td class="px-4 py-3 font-medium">SNS-002</td>
+              <td class="px-4 py-3">Temperature</td>
+              <td class="px-4 py-3">Field B - Center</td>
+              <td class="px-4 py-3">92%</td>
+              <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200">Active</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="bg-white dark:bg-gray-800 py-6">
+    <div class="container mx-auto px-5 flex flex-col md:flex-row items-center justify-between">
+      <p class="text-gray-600 dark:text-gray-400 text-sm">© 2023 AgriVision AI</p>
+      <div class="space-x-4 mt-3 md:mt-0">
+        <a href="#" class="text-gray-500 dark:text-gray-300 hover:text-gray-800"> <i class="fab fa-github"></i> </a>
+        <a href="#" class="text-gray-500 dark:text-gray-300 hover:text-gray-800"> <i class="fab fa-twitter"></i> </a>
+        <a href="#" class="text-gray-500 dark:text-gray-300 hover:text-gray-800"> <i class="fab fa-linkedin"></i> </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+
+  <script>
+    AOS.init({ duration: 700, once: true });
+
+    // ---------- Helpers ----------
+    const isDark = () => document.documentElement.classList.contains('dark');
+    function setThemeClass(dark) {
+      document.documentElement.classList.toggle('dark', !!dark);
+      document.getElementById('theme-icon').className = dark ? 'fas fa-sun' : 'fas fa-moon';
+    }
+
+    // Initialize theme icon and behavior
+    (function initThemeToggle(){
+      const themeIcon = document.getElementById('theme-icon');
+      const saved = localStorage.getItem('theme'); // 'dark' | 'light' | null
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const dark = saved ? (saved === 'dark') : prefersDark;
+      setThemeClass(dark);
+
+      // toggle button
+      document.getElementById('theme-toggle').addEventListener('click', ()=>{
+        const newDark = !isDark();
+        setThemeClass(newDark);
+        localStorage.setItem('theme', newDark ? 'dark' : 'light');
+        // update dynamic pieces
+        updateThemeSensitive(newDark);
+      });
+
+      // if system preference changes and user hasn't explicitly set a preference, respect it
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e)=>{
+        if (!localStorage.getItem('theme')) {
+          setThemeClass(e.matches);
+          updateThemeSensitive(e.matches);
+        }
+      });
+    })();
+
+    // ---------- Mobile menu ----------
+    document.getElementById('menu-toggle').addEventListener('click', () => {
+      document.getElementById('mobile-menu').classList.toggle('hidden');
+    });
+    // close mobile menu when clicking a link
+    document.querySelectorAll('#mobile-menu a').forEach(a => a.addEventListener('click', ()=>{
+      document.getElementById('mobile-menu').classList.add('hidden');
+    }));
+
+    // ---------- Map (Leaflet) with light/dark tiles ----------
+    let map, tileLight, tileDark, currentTileLayer;
+    function initMap() {
+      map = L.map('map').setView([26.9124, 75.7873], 13); // sample coords
+
+      tileLight = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      });
+      tileDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors © CARTO'
+      });
+
+      currentTileLayer = isDark() ? tileDark.addTo(map) : tileLight.addTo(map);
+
+      // field boundary + zones (demo)
+      const fieldCoords = [
+        [26.915, 75.792],
+        [26.915, 75.783],
+        [26.905, 75.783],
+        [26.905, 75.792]
+      ];
+      L.polygon(fieldCoords, {color: '#4ade80', weight:2}).addTo(map).bindPopup('Field boundary');
+
+      const zones = [
+        {coords: [[26.913,75.789],[26.913,75.787],[26.911,75.787],[26.911,75.789]], color: '#4ade80'},
+        {coords: [[26.911,75.789],[26.911,75.787],[26.909,75.787],[26.909,75.789]], color: '#facc15'},
+        {coords: [[26.913,75.787],[26.913,75.785],[26.911,75.785],[26.911,75.787]], color: '#f87171'},
+      ];
+      zones.forEach(z => L.polygon(z.coords, {color: z.color, weight:1, fillOpacity:0.6}).addTo(map));
+    }
+
+    function switchMapTiles(dark) {
+      if (!map) return;
+      try {
+        if (currentTileLayer) map.removeLayer(currentTileLayer);
+      } catch(e){}
+      currentTileLayer = dark ? tileDark.addTo(map) : tileLight.addTo(map);
+    }
+
+    // ---------- Charts (ApexCharts + Chart.js) ----------
+    let apexChart = null;
+    let ndviChart = null, moistureChart = null, pestChart = null, nutrientChart = null;
+
+    function createApex(dark) {
+      if (apexChart) { try { apexChart.destroy(); } catch(e){} }
+      const textColor = dark ? '#E5E7EB' : '#374151';
+      const gridColor = dark ? '#374151' : '#eef2ff';
+      const opts = {
+        chart: { type:'line', height: 300, toolbar: { show: false }, foreColor: textColor },
+        series: [
+          { name: 'NDVI', data: [0.72,0.74,0.78,0.75,0.79,0.81,0.82] },
+          { name: 'Soil Moisture', data: [0.65,0.68,0.75,0.73,0.72,0.77,0.76] }
+        ],
+        xaxis: { categories: ['Jun 1','Jun 8','Jun 15','Jun 22','Jun 29','Jul 6','Jul 13'], labels: { style: { colors: textColor } } },
+        yaxis: { labels: { style: { colors: textColor } } },
+        stroke: { curve: 'smooth', width: 3 },
+        colors: ['#10B981','#3B82F6'],
+        grid: { borderColor: gridColor }
+      };
+      apexChart = new ApexCharts(document.querySelector('#apex-trend'), opts);
+      apexChart.render();
+    }
+
+    function createChartJS(dark) {
+      const textColor = dark ? '#E5E7EB' : '#374151';
+      const gridColor = dark ? '#374151' : '#e6e6e6';
+      // destroy existing if present
+      if (ndviChart) ndviChart.destroy();
+      if (moistureChart) moistureChart.destroy();
+      if (pestChart) pestChart.destroy();
+      if (nutrientChart) nutrientChart.destroy();
+
+      // NDVI (line)
+      const ndviCtx = document.getElementById('ndviChart').getContext('2d');
+      ndviChart = new Chart(ndviCtx, {
+        type: 'line',
+        data: {
+          labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'],
+          datasets: [{ label: 'NDVI', data: [0.45,0.52,0.61,0.68,0.75,0.82,0.85,0.83], tension:0.3, fill:true, backgroundColor: dark ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.12)', borderColor:'#10B981' }]
+        },
+        options: {
+          responsive:true, maintainAspectRatio:false,
+          plugins: { legend: { labels: { color: textColor } } },
+          scales: {
+            x: { ticks: { color: textColor }, grid: { color: 'transparent' } },
+            y: { ticks: { color: textColor }, grid: { color: gridColor }, min:0, max:1 }
+          }
+        }
+      });
+
+      // Moisture (bar)
+      const moCtx = document.getElementById('moistureChart').getContext('2d');
+      moistureChart = new Chart(moCtx, {
+        type: 'bar',
+        data: {
+          labels: ['Zone A','Zone B','Zone C','Zone D'],
+          datasets: [{ label:'Moisture %', data:[32,28,18,35], backgroundColor: ['#3B82F6','#3B82F6','#EF4444','#3B82F6'] }]
+        },
+        options: {
+          responsive:true, maintainAspectRatio:false,
+          plugins: { legend: { display:false } },
+          scales: {
+            x: { ticks: { color: textColor }, grid: { color: 'transparent' } },
+            y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero:true, max:50 }
+          }
+        }
+      });
+
+      // Pest (doughnut)
+      const pestCtx = document.getElementById('pestChart').getContext('2d');
+      pestChart = new Chart(pestCtx, {
+        type:'doughnut',
+        data: { labels:['Low','Medium','High'], datasets:[{ data:[45,35,20], backgroundColor:['#10B981','#F59E0B','#EF4444'] }] },
+        options: { responsive:true, maintainAspectRatio:false, plugins: { legend: { position:'bottom', labels: { color: textColor } } } }
+      });
+
+      // Nutrient (radar)
+      const nutCtx = document.getElementById('nutrientChart').getContext('2d');
+      nutrientChart = new Chart(nutCtx, {
+        type:'radar',
+        data: {
+          labels:['Nitrogen','Phosphorus','Potassium','Calcium','Magnesium','Sulfur'],
+          datasets:[
+            { label:'Current', data:[85,70,90,65,75,80], borderColor:'#8B5CF6', backgroundColor:'rgba(139,92,246,0.12)' },
+            { label:'Optimal', data:[80,80,80,80,80,80], borderColor:'#D1D5DB', backgroundColor:'rgba(209,213,219,0.08)' }
+          ]
+        },
+        options: {
+          responsive:true, maintainAspectRatio:false,
+          scales: { r: { pointLabels: { color: textColor }, grid: { color: gridColor }, angleLines: { color: gridColor }, suggestedMin:0, suggestedMax:100 } },
+          plugins: { legend: { labels: { color: textColor } } }
+        }
+      });
+    }
+
+    // Recreate all dynamic pieces that are theme-sensitive
+    function updateThemeSensitive(dark) {
+      // map tiles
+      switchMapTiles(dark);
+      // charts
+      createApex(dark);
+      createChartJS(dark);
+      // small UI updates (last-updated color already handled with tailwind classes)
+    }
+
+    // ---------- Boot sequence ----------
+    document.addEventListener('DOMContentLoaded', function(){
+      // set last-updated
+      const lastEl = document.getElementById('last-updated-top');
+      function fmt(t){ return t.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
+      lastEl.textContent = `Today, ${fmt(new Date())}`;
+      setInterval(()=> lastEl.textContent = `Today, ${fmt(new Date())}`, 30000);
+
+      // init map
+      initMap();
+
+      // initial charts + apex (based on current theme)
+      updateThemeSensitive(isDark());
+
+      // map-layer buttons visual feedback (demo)
+      document.querySelectorAll('.map-layer-btn').forEach(btn => {
+        btn.addEventListener('click', function(){
+          document.querySelectorAll('.map-layer-btn').forEach(b => b.classList.remove('ring','ring-2'));
+          this.classList.add('ring','ring-2');
+        });
+      });
+
+      // Add sensor demo button
+      document.getElementById('add-sensor').addEventListener('click', ()=>{
+        alert('Add sensor flow (demo).');
+      });
+    });
+  </script>
+</body>
+</html>
