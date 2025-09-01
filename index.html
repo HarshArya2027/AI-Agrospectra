@@ -52,7 +52,7 @@
     #apex-trend { height: 300px; }
   </style>
 </head>
-<body <body class="bg-gradient-to-br from-green-50 via-white to-emerald-100 
+<body class="bg-gradient-to-br from-green-50 via-white to-emerald-100 
              dark:from-gray-900 dark:via-gray-800 dark:to-teal-900 
              text-gray-900 dark:text-gray-100 antialiased transition-colors min-h-screen">
 
@@ -99,6 +99,29 @@
   </header>
 
   <main class="container mx-auto px-5 py-8 space-y-8">
+<section id="upload" class="card bg-white dark:bg-gray-800 p-6 mt-6">
+  <h3 class="text-lg font-semibold mb-4">Upload Crop Image for Analysis</h3>
+  
+  <form id="uploadForm" class="space-y-4">
+    <input type="file" id="cropImage" name="cropImage" accept="image/*" 
+           class="block w-full text-sm text-gray-600 dark:text-gray-300 
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-md file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-purple-50 file:text-purple-700
+                  hover:file:bg-purple-100" required>
+    
+    <button type="submit" 
+            class="px-4 py-2 rounded-md bg-purple-600 text-white hover:bg-purple-700">
+      Analyze Image
+    </button>
+  </form>
+
+  <div id="analysisResult" class="mt-4 hidden p-4 rounded bg-gray-100 dark:bg-gray-700">
+    <h4 class="font-medium mb-2">Analysis Result:</h4>
+    <p id="resultText">Processing...</p>
+  </div>
+</section>
 
     <!-- Dashboard -->
     <section id="dashboard" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -106,6 +129,7 @@
         <div class="card bg-white dark:bg-gray-800 p-6" data-aos="fade-up">
           <div class="flex items-start justify-between">
             <div>
+
               <h2 class="text-2xl font-semibold">Farm Health Dashboard</h2>
               <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Overview of field health, sensors & recent alerts</p>
             </div>
@@ -162,7 +186,7 @@
           </div>
         </div>
       </div>
-
+          
       <aside class="card bg-white dark:bg-gray-800 p-6" data-aos="zoom-in">
         <h3 class="text-lg font-semibold mb-3">Recent Alerts</h3>
         <div class="space-y-3">
@@ -519,5 +543,38 @@
       });
     });
   </script>
+  <script>
+document.getElementById('uploadForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+
+  const fileInput = document.getElementById('cropImage');
+  if (!fileInput.files.length) return;
+
+  const formData = new FormData();
+  formData.append("image", fileInput.files[0]);
+
+  // Show "processing"
+  const resultBox = document.getElementById('analysisResult');
+  const resultText = document.getElementById('resultText');
+  resultBox.classList.remove('hidden');
+  resultText.textContent = "Analyzing... Please wait";
+
+  try {
+    // Send image to backend AI API
+    const response = await fetch("http://localhost:5000/analyze", { 
+      method: "POST",
+      body: formData
+    });
+    const data = await response.json();
+
+    // Show AI analysis result
+    resultText.textContent =`Result: ${data.result} (Confidence: ${data.confidence})`;
+  } catch (err) {
+    console.error(err);
+    resultText.textContent = "Error analyzing image. Please try again.";
+  }
+});
+</script>
+
 </body>
 </html>
