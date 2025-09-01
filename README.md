@@ -38,11 +38,3 @@ This project was built as part of **Smart India Hackathon (SIH) 2025** to showca
 * 🔄 Backend integration for real-time IoT + satellite data
 * 🌍 Multi-language UI (English + regional languages)
 * 🤖 AI-powered pest & yield predictions
-
-## 🤝 Contributors
-
-* Team \[Your Team Name] — SIH 2025
-
----
-
-👉 Do you want me to also **add shields/badges** (like "Made with Tailwind", "SIH 2025", "Open Source") at the top of the README for extra style?
